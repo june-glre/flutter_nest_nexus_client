@@ -1,13 +1,18 @@
 /// flutter_nest_nexus_client
 ///
-/// NestJS API 서버를 위한 Flutter SDK.
+/// NestJS API 서버(`https://juny-api.kr`)를 위한 Flutter SDK.
 /// 핵심 철학: "Flutter는 API를 몰라도 된다."
 ///
-/// 기본 사용법:
+/// 기본 사용법 (default base URL):
 /// ```dart
-/// final api = NestClient('https://api.example.com', token: 'your-token');
+/// final api = NestClient(token: 'your-token');
 /// final users = await api.users.get();
 /// final me = await api.auth.me();
+/// ```
+///
+/// 명시적 URL (local dev):
+/// ```dart
+/// final api = NestClient.withUrl('http://localhost:3000', token: 'dev-token');
 /// ```
 ///
 /// 설정 파일 사용:
@@ -18,11 +23,22 @@
 /// 자동 토큰 갱신 사용:
 /// ```dart
 /// final api = NestClient(
-///   'https://api.example.com',
 ///   token: accessToken,
 ///   refreshToken: refreshToken,
 /// );
 /// // 이후 401 응답 시 자동으로 토큰 갱신 및 요청 재시도
+/// ```
+///
+/// 구독 결제 (IAP):
+/// ```dart
+/// final plans = await api.plans.list();
+/// final me = await api.subscriptions.me();
+/// final activated = await api.subscriptions.verify(
+///   platform: SubscriptionPlatform.android,
+///   productId: 'pro_monthly',
+///   purchaseToken: token, // Google Play
+///   appId: 'dayly',       // Firebase claim 동기화 트리거 (선택)
+/// );
 /// ```
 ///
 /// Result 패턴 (예외 없는 에러 처리):
@@ -42,10 +58,14 @@ export 'core/exception.dart';
 
 // App-friendly Models
 export 'models/user.dart';
+export 'models/plan.dart';
+export 'models/subscription.dart';
 
 // Domain Clients
 export 'modules/user/user_client.dart';
 export 'modules/auth/auth_client.dart';
+export 'modules/plan/plan_client.dart';
+export 'modules/subscription/subscription_client.dart';
 
 // Utilities
 export 'utils/result.dart';

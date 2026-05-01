@@ -168,44 +168,63 @@ void main() {
       expect(config.receiveTimeout, const Duration(seconds: 15));
       expect(config.enableLog, true);
     });
+
+    test('default baseUrl: https://juny-api.kr', () {
+      const config = NestConfig();
+      expect(config.baseUrl, 'https://juny-api.kr');
+      expect(config.baseUrl, NestConfig.defaultBaseUrl);
+    });
+
+    test('fromJson: baseUrl 누락 시 default 사용', () {
+      final config = NestConfig.fromJson({'token': 'x'});
+      expect(config.baseUrl, NestConfig.defaultBaseUrl);
+      expect(config.token, 'x');
+    });
   });
 
   // ─── NestClient ───────────────────────────────────────────────────
 
   group('NestClient', () {
     test('factory 생성: 토큰 설정', () {
-      final client = NestClient('https://api.test.com', token: 'abc');
+      final client = NestClient.withUrl('https://api.test.com', token: 'abc');
       expect(client.currentToken, 'abc');
     });
 
     test('factory 생성: 토큰 없음', () {
-      final client = NestClient('https://api.test.com');
+      final client = NestClient.withUrl('https://api.test.com');
       expect(client.currentToken, isNull);
     });
 
     test('setToken: 런타임 업데이트', () {
-      final client = NestClient('https://api.test.com');
+      final client = NestClient.withUrl('https://api.test.com');
       client.setToken('new-token');
       expect(client.currentToken, 'new-token');
     });
 
     test('setToken: null로 초기화', () {
-      final client = NestClient('https://api.test.com', token: 'abc');
+      final client = NestClient.withUrl('https://api.test.com', token: 'abc');
       client.setToken(null);
       expect(client.currentToken, isNull);
     });
 
     test('setRefreshToken: 토큰이 설정된 경우만 동작', () {
       // refreshToken 없이 생성 → _refreshInterceptor=null → setRefreshToken no-op
-      final client = NestClient('https://api.test.com', token: 'abc');
+      final client = NestClient.withUrl('https://api.test.com', token: 'abc');
       client.setRefreshToken('new-refresh'); // 예외 없이 실행되어야 함
       expect(client.currentRefreshToken, isNull);
     });
 
     test('users / auth 접근 가능', () {
-      final client = NestClient('https://api.test.com');
+      final client = NestClient.withUrl('https://api.test.com');
       expect(client.users, isNotNull);
       expect(client.auth, isNotNull);
+    });
+
+    test('default factory: baseUrl 미지정 → juny-api.kr', () {
+      // 기본 factory는 default base URL을 사용한다.
+      final client = NestClient(token: 'tk');
+      expect(client.currentToken, 'tk');
+      // 내부 baseUrl을 직접 노출하지는 않으므로 동작 검증은 통합 테스트로 분리.
     });
   });
 

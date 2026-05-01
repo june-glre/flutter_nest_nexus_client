@@ -18,6 +18,7 @@ NestJS API 서버를 위한 Flutter SDK.
 - [자동 토큰 갱신](#자동-토큰-갱신)
 - [Users 모듈](#users-모듈)
 - [Auth 모듈](#auth-모듈)
+- [Plan & Subscription 모듈 (IAP)](#plan--subscription-모듈-iap)
 - [Result 패턴 (예외 없는 에러 처리)](#result-패턴-예외-없는-에러-처리)
 - [페이지네이션](#페이지네이션)
 - [에러 타입 계층](#에러-타입-계층)
@@ -53,8 +54,11 @@ dev_dependencies:
 ```dart
 import 'package:flutter_nest_nexus_client/flutter_nest_nexus_client.dart';
 
-// 1. 클라이언트 생성
-final api = NestClient('https://api.example.com', token: 'your-access-token');
+// 1. 클라이언트 생성 — 기본 URL은 https://juny-api.kr
+final api = NestClient(token: 'your-access-token');
+
+// 로컬/스테이징 등 다른 도메인 사용:
+// final api = NestClient.withUrl('http://localhost:3000', token: 'dev-token');
 
 // 2. 유저 목록 조회
 final users = await api.users.get();  // List<User>
@@ -73,15 +77,24 @@ print(page.totalPages);  // int — 전체 페이지 수
 
 ## NestClient 생성
 
-### 기본 생성자
+### 기본 생성자 (default base URL = `https://juny-api.kr`)
 
 ```dart
 final api = NestClient(
-  'https://api.example.com',
   token: 'access-token',         // 선택 — 초기 access token
   refreshToken: 'refresh-token', // 선택 — 설정 시 자동 갱신 활성화
   refreshEndpoint: '/auth/refresh', // 기본값
   enableLog: true,               // 개발 중 요청/응답 로그 출력 (기본: false)
+);
+```
+
+### 명시적 URL (로컬/스테이징)
+
+```dart
+final api = NestClient.withUrl(
+  'http://localhost:3000',
+  token: 'dev-token',
+  enableLog: true,
 );
 ```
 
@@ -148,7 +161,6 @@ api.setRefreshToken(null);
 
 ```dart
 final api = NestClient(
-  'https://api.example.com',
   token: accessToken,
   refreshToken: refreshToken, // ← 이 값이 있으면 자동 갱신 활성화
 );
@@ -244,6 +256,86 @@ class AuthResponse {
   final String? refreshToken;
   final User user;
 }
+```
+
+---
+
+## Plan & Subscription 모듈 (IAP)
+
+본 SDK는 nest-nexus의 IAP 기반 구독 결제(`/v1/plans`, `/v1/subscriptions/*`)를 지원합니다.
+
+### Plan 카탈로그 조회 (인증 불필요)
+
+```dart
+final plans = await api.plans.list();           // List<Plan>
+for (final plan in plans) {
+  print('${plan.code}: ${plan.priceCents}c / ${plan.billingPeriod}');
+}
+
+final pro = await api.plans.getByCode('pro_monthly');
+```
+
+### 구독 상태 조회
+
+```dart
+final me = await api.subscriptions.me();   // Subscription
+if (me.isFreeTier) {
+  // 활성 구독 없음 — paywall 노출
+} else if (me.status.isEntitled) {
+  // 권한 부여
+}
+```
+
+### IAP 영수증 검증
+
+스토어 SDK(예: `in_app_purchase`)에서 결제가 완료된 직후, 받은 영수증을 백엔드로 전달해 검증합니다.
+
+**Android**:
+
+```dart
+final sub = await api.subscriptions.verify(
+  platform: SubscriptionPlatform.android,
+  productId: 'pro_monthly',
+  purchaseToken: purchaseDetails.verificationData.serverVerificationData,
+  appId: 'dayly', // 선택 — Firebase isPremium claim과 동기화
+);
+```
+
+**iOS**:
+
+```dart
+final sub = await api.subscriptions.verify(
+  platform: SubscriptionPlatform.ios,
+  productId: 'pro_monthly',
+  transactionId: purchaseDetails.purchaseID,
+  appId: 'dayly',
+);
+```
+
+### 구독 복원 (기기 변경 등)
+
+```dart
+final restored = await api.subscriptions.restore(appId: 'dayly');
+```
+
+### Result 패턴
+
+```dart
+final r = await api.subscriptions.verifySafe(
+  platform: SubscriptionPlatform.android,
+  productId: 'pro_monthly',
+  purchaseToken: token,
+);
+r.fold(
+  onSuccess: (sub) => print('활성: ${sub.planCode}'),
+  onFailure: (err) {
+    if (err is ReceiptInvalidException) {
+      // 영수증 거절 — UI에 재시도 안내
+    } else if (err is PlanNotFoundException) {
+      // 백엔드 plan 카탈로그에 productId 미등록
+    }
+  },
+);
 ```
 
 ---
@@ -464,10 +556,8 @@ class UserRepository {
   }
 }
 
-// 프로덕션
-final repo = UserRepository(
-  NestClient('https://api.example.com', token: accessToken),
-);
+// 프로덕션 (default base URL)
+final repo = UserRepository(NestClient(token: accessToken));
 
 // 테스트
 final repo = UserRepository(MockNestClient());

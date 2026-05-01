@@ -1,7 +1,8 @@
 name: flutter_nest_nexus_client
-description: "A new Flutter package project."
-version: 0.0.1
-homepage:
+description: "nest-nexus(https://juny-api.kr) 백엔드를 위한 Flutter 클라이언트 SDK. dio 기반, 자동 토큰 갱신, IAP 구독 지원."
+version: 0.1.0
+homepage: https://github.com/jun-young1993/flutter_nest_nexus_client
+repository: https://github.com/jun-young1993/flutter_nest_nexus_client
 
 environment:
   sdk: ^3.10.7

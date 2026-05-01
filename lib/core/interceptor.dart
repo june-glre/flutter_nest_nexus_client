@@ -88,6 +88,11 @@ class ErrorInterceptor extends Interceptor {
     final statusCode = err.response?.statusCode;
     final message = _extractMessage(err.response);
 
+    // 백엔드의 비즈니스 에러 코드(message가 anchor 역할)에 따라 specialized
+    // exception을 우선 매핑한다. statusCode 기반 generic 매핑은 fallback.
+    final specialized = _mapBusinessCode(message, err);
+    if (specialized != null) return specialized;
+
     return switch (statusCode) {
       401 => UnauthorizedException(message: message, originalError: err),
       403 => ForbiddenException(message: message, originalError: err),
@@ -98,11 +103,37 @@ class ErrorInterceptor extends Interceptor {
     };
   }
 
+  /// 백엔드가 throw하는 의미적 코드(`RECEIPT_INVALID` 등)를 도메인 예외로 매핑.
+  /// 본 SDK는 nest-nexus가 `BadRequestException('CODE')` 패턴으로 throw한다고
+  /// 가정한다(HttpExceptionFilter가 message를 그대로 전달).
+  ApiException? _mapBusinessCode(String message, DioException err) {
+    if (message.contains('RECEIPT_INVALID')) {
+      return ReceiptInvalidException(
+        message: message,
+        originalError: err,
+      );
+    }
+    if (message.contains('PLAN_NOT_FOUND')) {
+      return PlanNotFoundException(message: message, originalError: err);
+    }
+    if (message.contains('PRODUCT_PLATFORM_MISMATCH')) {
+      return ProductPlatformMismatchException(
+        message: message,
+        originalError: err,
+      );
+    }
+    return null;
+  }
+
   String _extractMessage(Response? response) {
     try {
       final data = response?.data;
       if (data is Map) {
-        return data['message']?.toString() ?? 'Unknown error';
+        final raw = data['message'];
+        if (raw is List) {
+          return raw.map((e) => e?.toString() ?? '').join('; ');
+        }
+        return raw?.toString() ?? 'Unknown error';
       }
     } catch (_) {}
     return 'Unknown error';

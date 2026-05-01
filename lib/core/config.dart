@@ -5,15 +5,28 @@ import 'package:flutter/services.dart';
 
 /// SDK 설정 클래스.
 ///
+/// `baseUrl` 미지정 시 [NestConfig.defaultBaseUrl] (= `https://juny-api.kr`)을
+/// 사용한다. 본 SDK가 nest-nexus 프로덕션 도메인 전용이라는 가정에 기반한
+/// 기본값이며, 로컬 개발/스테이징 시에는 명시적으로 다른 URL을 전달한다.
+///
 /// 사용 예:
 /// ```dart
-/// // 직접 생성
-/// final config = NestConfig(baseUrl: 'https://api.example.com', token: 'abc');
+/// // 기본 URL 사용
+/// final config = NestConfig();
+///
+/// // 명시적 URL
+/// final config = NestConfig(baseUrl: 'http://localhost:3000', token: 'abc');
 ///
 /// // JSON 파일에서 로드
 /// final config = await NestConfig.fromAsset('assets/config.json');
 /// ```
 class NestConfig {
+  /// 본 SDK의 기본 NestJS API 도메인.
+  ///
+  /// 단일 운영 환경(`https://juny-api.kr`) 가정. 로컬/스테이징 사용 시는
+  /// 생성자에서 명시적으로 `baseUrl`을 전달해 override 한다.
+  static const String defaultBaseUrl = 'https://juny-api.kr';
+
   final String baseUrl;
   final String? token;
   final String? refreshToken;
@@ -23,7 +36,7 @@ class NestConfig {
   final bool enableLog;
 
   const NestConfig({
-    required this.baseUrl,
+    this.baseUrl = defaultBaseUrl,
     this.token,
     this.refreshToken,
     this.refreshEndpoint = '/auth/refresh',
@@ -34,7 +47,7 @@ class NestConfig {
 
   factory NestConfig.fromJson(Map<String, dynamic> json) {
     return NestConfig(
-      baseUrl: json['baseUrl'] as String,
+      baseUrl: (json['baseUrl'] as String?) ?? defaultBaseUrl,
       token: json['token'] as String?,
       refreshToken: json['refreshToken'] as String?,
       refreshEndpoint:

@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import '../generated/api/auth_api.dart';
 import '../generated/api/user_api.dart';
 import '../modules/auth/auth_client.dart';
+import '../modules/plan/plan_client.dart';
+import '../modules/subscription/subscription_client.dart';
 import '../modules/user/user_client.dart';
 import 'config.dart';
 import 'interceptor.dart';
@@ -17,8 +19,8 @@ import 'token_refresh_interceptor.dart';
 ///   MyRepository(this._api);
 /// }
 ///
-/// // 프로덕션
-/// MyRepository(NestClient('https://api.example.com'));
+/// // 프로덕션 (default base = https://juny-api.kr)
+/// MyRepository(NestClient(token: 'abc'));
 ///
 /// // 테스트
 /// MyRepository(MockNestClient());
@@ -26,6 +28,8 @@ import 'token_refresh_interceptor.dart';
 abstract class NestClientBase {
   UserClientBase get users;
   AuthClientBase get auth;
+  PlanClientBase get plans;
+  SubscriptionClientBase get subscriptions;
   void setToken(String? token);
   void setRefreshToken(String? token);
   String? get currentToken;
@@ -34,10 +38,19 @@ abstract class NestClientBase {
 
 /// flutter_nest_nexus_client의 진입점 (Facade 패턴).
 ///
-/// 기본 사용법:
+/// 기본 URL은 [NestConfig.defaultBaseUrl] (`https://juny-api.kr`)이며,
+/// 로컬/스테이징 등 다른 도메인을 쓸 때만 [NestClient.withUrl] 또는
+/// [NestClient.fromConfig]로 override 한다.
+///
+/// 기본 사용법 (prod):
 /// ```dart
-/// final api = NestClient('https://api.example.com', token: 'your-token');
+/// final api = NestClient(token: 'your-token');
 /// final users = await api.users.get();
+/// ```
+///
+/// 명시적 URL (local dev):
+/// ```dart
+/// final api = NestClient.withUrl('http://localhost:3000', token: 'dev-token');
 /// ```
 ///
 /// 설정 파일 사용:
@@ -54,6 +67,8 @@ abstract class NestClientBase {
 class NestClient extends NestClientBase {
   final UserClient users;
   final AuthClient auth;
+  final PlanClient plans;
+  final SubscriptionClient subscriptions;
 
   final AuthInterceptor _authInterceptor;
   final TokenRefreshInterceptor? _refreshInterceptor;
@@ -61,19 +76,37 @@ class NestClient extends NestClientBase {
   NestClient._({
     required this.users,
     required this.auth,
+    required this.plans,
+    required this.subscriptions,
     required AuthInterceptor authInterceptor,
     TokenRefreshInterceptor? refreshInterceptor,
   })  : _authInterceptor = authInterceptor,
         _refreshInterceptor = refreshInterceptor;
 
-  /// 직접 생성.
+  /// 기본 URL([NestConfig.defaultBaseUrl])로 NestClient 생성.
   ///
-  /// [baseUrl] NestJS API 서버 기본 URL
   /// [token] 초기 access token (선택)
   /// [refreshToken] 초기 refresh token (선택). 설정 시 자동 갱신 활성화.
   /// [refreshEndpoint] 토큰 갱신 엔드포인트 (기본: '/auth/refresh')
   /// [enableLog] 요청/응답 로깅 활성화 여부
-  factory NestClient(
+  factory NestClient({
+    String? token,
+    String? refreshToken,
+    String refreshEndpoint = '/auth/refresh',
+    bool enableLog = false,
+  }) {
+    return _build(NestConfig(
+      token: token,
+      refreshToken: refreshToken,
+      refreshEndpoint: refreshEndpoint,
+      enableLog: enableLog,
+    ));
+  }
+
+  /// 명시적 URL로 NestClient 생성. 로컬/스테이징/테스트 환경용.
+  ///
+  /// [baseUrl] NestJS API 서버 기본 URL (예: `http://localhost:3000`)
+  factory NestClient.withUrl(
     String baseUrl, {
     String? token,
     String? refreshToken,
@@ -145,6 +178,8 @@ class NestClient extends NestClientBase {
     return NestClient._(
       users: UserClient(userApi),
       auth: AuthClient(authApi),
+      plans: PlanClient(dio),
+      subscriptions: SubscriptionClient(dio),
       authInterceptor: authInterceptor,
       refreshInterceptor: refreshInterceptor,
     );
